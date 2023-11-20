@@ -24,7 +24,8 @@ def main():
         factor = transcription.duration_in_minutes * 60 / transcription.elapsed_seconds
         total_elapsed += transcription.elapsed_seconds
         total_duration += transcription.duration_in_minutes * 60
-        print(f'Transcribed in {int(transcription.elapsed_seconds):4} seconds, realtime factor: {factor:6.2f}x, seconds to initialize = {transcription.init_elapsed_seconds:6.2f} {transcription.url}\n')
+        elapsed_seconds_since_launch = transcription.init_elapsed_seconds or transcription.elapsed_seconds_since_launch
+        print(f'Transcribed in {int(transcription.elapsed_seconds):4} seconds, realtime factor: {factor:6.2f}x, seconds to initialize = {elapsed_seconds_since_launch:6.2f} {transcription.url}\n')
         for chunk in transcription.chunks:
             print(f'{format_timestamp(chunk.timestamp)}', chunk.text)
             
