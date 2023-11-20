@@ -5,6 +5,7 @@ import sys
 from WhisperTranscriber import WhisperTranscriber
 from AwsUtils import Queue, Storage
 import traceback
+import datetime
 
 # This is the top level of a whisper-based audio transcription system.
 # Audio URLs are removed from an SQS queue and streamed through whisper.
@@ -44,6 +45,6 @@ def main():
         print(error)
             
 if __name__ == '__main__':
-    if sys.argv[1] == 'test':
+    if len(sys.argv) > 1 and sys.argv[1] == 'test':
         Queue().put({'id': 0, 'url': 'https://media.dharmaseed.org/recordings/sample.mp3'})
     main()

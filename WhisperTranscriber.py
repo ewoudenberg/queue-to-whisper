@@ -45,7 +45,10 @@ class WhisperTranscriber:
         string: JSON string containing transcription and audio alignment time points"""
         start_time = time.time()
         result = self.pipe(audio_source)
-        result['elapsed_seconds'] = time.time() - start_time
+        end_time = time.time()
+        result['start_time'] = start_time
+        result['end_time'] = end_time
+        result['elapsed_seconds'] = end_time - start_time
 
         return result
 
