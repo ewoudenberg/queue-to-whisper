@@ -6,6 +6,7 @@ from WhisperTranscriber import WhisperTranscriber
 from AwsUtils import Queue, Storage
 import traceback
 import datetime
+import os
 
 # This is the top level of a whisper-based audio transcription system.
 # Audio URLs are removed from an SQS queue and streamed through whisper.
@@ -15,33 +16,36 @@ def main():
     storage = Storage()
     instance_start_time = time.time()
     result = None
+    base = {'SALAD_MACHINE_ID': os.environ.get('SALAD_MACHINE_ID', 'NA'),
+            'SALAD_CONTAINER_GROUP_ID': os.environ.get('SALAD_CONTAINER_GROUP_ID', 'NA'),
+            'instance_start': instance_start_time,
+            'instance_start_datetime': datetime.datetime.utcfromtimestamp(instance_start_time).strftime('%Y-%m-%d %H:%M:%S'),
+            }
     
     try:
         transcriber = WhisperTranscriber()
         queue = Queue()
-        init_elapsed_seconds = time.time() - instance_start_time
         
         while True:
+            base['elapsed_seconds_since_launch'] = time.time() - instance_start_time
             result = None
             msg = queue.get()
             if msg:
+                base.update(msg)
                 url, id = msg['url'], msg['id']
                 result = transcriber.transcribe(url)
-                result.update(msg)
-                result['init_elapsed_seconds'] = init_elapsed_seconds
-                result['instance_start'] = instance_start_time
-                result['instance_start_datetime'] = datetime.datetime.utcfromtimestamp(instance_start_time).strftime('%Y-%m-%d %H:%M:%S')
-                storage.save(id, json.dumps(result) + '\n')
+                result.update(base)
+                storage.save(f'{id}.json', json.dumps(result) + '\n')
                 print(f'processed {id}, result = {result}')
             else:
                 print('waiting for input now')
     except Exception as e:
-        signature = instance_start_time
-        error = {"exception": type(e).__name__, "tracback": traceback.format_exception(*sys.exc_info()) }
+        error = {"exception": type(e).__name__, "traceback": traceback.format_exception(*sys.exc_info()) }
+        error.update(base)
         if result:
             error.update(result)
-            signature = result['id']
-        storage.save(f'failed-{signature}', json.dumps(error) + '\n')
+        signature = instance_start_time
+        storage.save(f'{signature}.failed', json.dumps(error) + '\n')
         print(error)
             
 if __name__ == '__main__':

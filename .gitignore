@@ -2,3 +2,4 @@ model
 .vscode
 aws_secrets.py
 __pycache__
+jsons
