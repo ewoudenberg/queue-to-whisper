@@ -1,5 +1,5 @@
 import time
-
+import datetime
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
@@ -7,7 +7,7 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 class WhisperTranscriber:
     """Hugging Face code for streaming audio URLs into transcriptions"""
     def __init__(self):
-        start = time.time()
+        self.start = time.time()
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
@@ -33,7 +33,7 @@ class WhisperTranscriber:
             torch_dtype=torch_dtype,
             device=device,
         )
-        print('init ran for ', time.time()-start, 'seconds')
+        print('init ran for ', time.time()-self.start, 'seconds')
         
     def transcribe(self, audio_source):
         """Transcribe an audio file (wav, mp3) referenced by a URL or filename into text
@@ -46,6 +46,7 @@ class WhisperTranscriber:
         start_time = time.time()
         result = self.pipe(audio_source)
         result['elapsed_seconds'] = time.time() - start_time
+
         return result
 
 if __name__ == '__main__':

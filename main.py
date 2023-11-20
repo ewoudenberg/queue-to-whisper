@@ -1,32 +1,49 @@
 #!/usr/bin/env python
 import json
 import time
+import sys
 from WhisperTranscriber import WhisperTranscriber
 from AwsUtils import Queue, Storage
+import traceback
 
 # This is the top level of a whisper-based audio transcription system.
 # Audio URLs are removed from an SQS queue and streamed through whisper.
 # The results are stored in S3.
 
 def main():
-    start = time.time()
-    transcriber = WhisperTranscriber()
-    queue = Queue()
     storage = Storage()
-    init_elapsed_seconds = time.time() - start
+    instance_start_time = time.time()
+    result = None
     
-    while True:
-        msg = queue.get()
-        if msg:
-            url, id = msg['url'], msg['id']
-            result = transcriber.transcribe(url)
-            result.update(msg)
-            result['init_elapsed_seconds'] = init_elapsed_seconds
-            storage.save(id, json.dumps(result) + '\n')
-            print(f'processed {id}, result = {result}')
-        else:
-            print('waiting for input now')
+    try:
+        transcriber = WhisperTranscriber()
+        queue = Queue()
+        init_elapsed_seconds = time.time() - instance_start_time
+        
+        while True:
+            result = None
+            msg = queue.get()
+            if msg:
+                url, id = msg['url'], msg['id']
+                result = transcriber.transcribe(url)
+                result.update(msg)
+                result['init_elapsed_seconds'] = init_elapsed_seconds
+                result['instance_start'] = instance_start_time
+                result['instance_start_datetime'] = datetime.datetime.utcfromtimestamp(instance_start_time).strftime('%Y-%m-%d %H:%M:%S')
+                storage.save(id, json.dumps(result) + '\n')
+                print(f'processed {id}, result = {result}')
+            else:
+                print('waiting for input now')
+    except Exception as e:
+        signature = instance_start_time
+        error = {"exception": type(e).__name__, "tracback": traceback.format_exception(*sys.exc_info()) }
+        if result:
+            error.update(result)
+            signature = result['id']
+        storage.save(f'failed-{signature}', json.dumps(error) + '\n')
+        print(error)
             
 if __name__ == '__main__':
-    # Queue().put({'id': 0, 'url': 'https://media.dharmaseed.org/recordings/sample.mp3'})
+    if sys.argv[1] == 'test':
+        Queue().put({'id': 0, 'url': 'https://media.dharmaseed.org/recordings/sample.mp3'})
     main()
