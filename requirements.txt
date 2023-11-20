@@ -1,0 +1,6 @@
+urllib3<1.27
+huggingface-hub<0.18
+transformers
+torch
+boto3
+accelerate
