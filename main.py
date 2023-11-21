@@ -72,6 +72,6 @@ def main():
         
             
 if __name__ == '__main__':
-    #if len(sys.argv) > 1 and sys.argv[1] == 'test':
-    Queue().put({'id': 0, 'url': 'https://media.dharmaseed.org/recordings/sample.mp3'})
+    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+        Queue().put({'id': 0, 'url': 'https://media.dharmaseed.org/recordings/sample.mp3'})
     main()
