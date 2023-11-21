@@ -4,3 +4,4 @@ transformers
 torch
 boto3
 accelerate
+addict

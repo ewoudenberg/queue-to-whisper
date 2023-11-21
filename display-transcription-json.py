@@ -8,28 +8,39 @@ from addict import Dict
 
 def main():
     if len(sys.argv) < 2:
-        print(f'Usage: {sys.argv[0]} [options] <transcription-output.json> [...] ; Pretty-print the json output of the Whisper transcription process.')
+        print(f'Usage: {sys.argv[0]} [--raw-text <transcription-output.json> [...] ; Pretty-print the json output of the Whisper transcription process.')
         sys.exit(1)
+        
+    raw_text = False
+    argv = sys.argv[1:]
+    if argv[0] == '--raw-text':
+        argv = sys.argv[2:]
+        raw_text = True
 
     total_elapsed = total_duration = 0
             
-    for fn in sys.argv[1:]:
+    for fn in argv:
         with open(fn) as f:
             transcription = Dict(json.load(f))
             
         if not transcription.duration_in_minutes:
             continue
         
-        print(f'{transcription.teacher}: {transcription.title}')
-        factor = transcription.duration_in_minutes * 60 / transcription.elapsed_seconds
-        total_elapsed += transcription.elapsed_seconds
-        total_duration += transcription.duration_in_minutes * 60
-        elapsed_seconds_since_launch = transcription.init_elapsed_seconds or transcription.elapsed_seconds_since_launch
-        print(f'Transcribed in {int(transcription.elapsed_seconds):4} seconds, realtime factor: {factor:6.2f}x, seconds to initialize = {elapsed_seconds_since_launch:6.2f} {transcription.url}\n')
+        if not raw_text:
+            print(f'{transcription.teacher}: {transcription.title}')
+            factor = transcription.duration_in_minutes * 60 / transcription.elapsed_seconds
+            total_elapsed += transcription.elapsed_seconds
+            total_duration += transcription.duration_in_minutes * 60
+            elapsed_seconds_since_launch = transcription.init_elapsed_seconds or transcription.elapsed_seconds_since_launch
+            print(f'Transcribed in {int(transcription.elapsed_seconds):4} seconds, realtime factor: {factor:6.2f}x, seconds to initialize = {elapsed_seconds_since_launch:6.2f} {transcription.url}\n')
         for chunk in transcription.chunks:
-            print(f'{format_timestamp(chunk.timestamp)}', chunk.text)
+            if raw_text:
+                print(chunk.text)
+            else:
+                print(f'{format_timestamp(chunk.timestamp)}', chunk.text)
             
-    print(f'Overall realtime factor = {total_duration}/{total_elapsed} = {total_duration/total_elapsed}')
+    if not raw_text:
+        print(f'Overall realtime factor = {total_duration}/{total_elapsed} = {total_duration/total_elapsed}')
     
 def format_timestamp(start_end):
     start, end = start_end
