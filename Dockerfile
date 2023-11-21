@@ -23,9 +23,6 @@ RUN pip install --upgrade --no-cache-dir pip
 COPY requirements.txt .
 RUN pip install -r requirements.txt 
 
-COPY main.py .
-COPY AwsUtils.py .
-COPY WhisperTranscriber.py .
-COPY aws_secrets.py .
+COPY *.py .
 
 CMD ["/bin/bash", "-c", "python3 main.py"]
