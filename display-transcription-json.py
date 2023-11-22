@@ -31,8 +31,8 @@ def main():
             factor = transcription.duration_in_minutes * 60 / transcription.elapsed_seconds
             total_elapsed += transcription.elapsed_seconds
             total_duration += transcription.duration_in_minutes * 60
-            elapsed_seconds_since_launch = transcription.init_elapsed_seconds or transcription.elapsed_seconds_since_launch
-            print(f'Transcribed in {int(transcription.elapsed_seconds):4} seconds, realtime factor: {factor:6.2f}x, seconds to initialize = {elapsed_seconds_since_launch:6.2f} {transcription.url}\n')
+            elapsed_seconds_since_launch = transcription.init_elapsed_seconds or transcription.elapsed_seconds_since_launch or transcription.seconds_to_initialize
+            print(f'{transcription.SALAD_MACHINE_ID} Transcribed in {int(transcription.elapsed_seconds):4d} seconds, realtime factor: {factor:6.2f}x, seconds to initialize = {elapsed_seconds_since_launch:6.2f} {transcription.url[48:100]}\n')
         for chunk in transcription.chunks:
             if raw_text:
                 print(chunk.text)
