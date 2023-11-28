@@ -83,7 +83,8 @@ def node_too_slow(msg, base):
        We put the msg back on the queue and arrange that this node is not used again."""
     queue = Queue()
     queue.delete()
-    queue.put(msg)    
+    queue.put(msg)
+    base['instance_exit_time'] = time.time()
     Storage().save(f'{msg["id"]}.slow', base)
     Salad().reallocate()
     
