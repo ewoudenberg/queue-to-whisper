@@ -51,7 +51,7 @@ class Storage:
     def save(self, key, body):
         """Store the transcription result in our S3 bucket with the name {id}.json"""
         key = f'large-v3/english/{key}'
-        self.s3.put_object(Bucket=BUCKET, Key=key, Body=body)
+        self.s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(body, indent=2) + '\n')
 
 if __name__ == '__main__':
     q = Queue()
