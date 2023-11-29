@@ -8,6 +8,7 @@ class Queue:
         session = boto3.Session(aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, region_name=REGION)
         self.sqs = session.client('sqs')
         self.last_receipt_handle = None
+        self.msg = None
 
     def delete(self):
         """Remove the previous item from the queue"""
@@ -15,17 +16,31 @@ class Queue:
             self.sqs.delete_message(QueueUrl = SQS_URL, ReceiptHandle = self.last_receipt_handle)
             self.last_receipt_handle = None
         
+    def set_last_message_visibility_timeout(self, timeout_in_seconds):
+        if self.last_receipt_handle:
+            self.sqs.change_message_visibility(QueueUrl=SQS_URL,
+                                               ReceiptHandle = self.last_receipt_handle,
+                                               VisibilityTimeout = round(timeout_in_seconds))
+        
     def get(self):
         """Remove the previous item from the queue and return the next one, if present"""
         self.delete()
         
         response = self.sqs.receive_message(QueueUrl = SQS_URL, WaitTimeSeconds=1)
+        self.msg = None
         if 'Messages' in response and response['Messages']:
             message = response['Messages'][0]
             self.last_receipt_handle = message['ReceiptHandle']
-            return json.loads(message['Body'])
-        
-        return None
+            self.msg = json.loads(message['Body'])
+
+        return self.msg
+    
+    def requeue_last_message(self):
+        """Remove last message and requeue it"""
+        self.delete()
+        if self.msg:
+            self.put(self.msg)
+            self.msg = None
     
     def put(self, python_dict):
         """Put the python dictionary on the queue as a JSON string"""

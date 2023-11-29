@@ -17,33 +17,35 @@ from SaladAPI import Salad
 MAX_IDLE_SECONDS_BEFORE_SHUTDOWN = (2*60) # AWS SQS Documentation says that a queue's "approximate" attributes settle within one minute.
 MIN_REALTIME_FACTOR = 22 # Abandon any nodes that are not running at at least this realtime factor
 
+QUEUE = Queue()
+
 def main():
     storage = Storage()
     instance_start_time = time.time()
-    result = None
+    result = {}
     base = {'SALAD_MACHINE_ID': os.environ.get('SALAD_MACHINE_ID', 'NA'),
             'SALAD_CONTAINER_GROUP_ID': os.environ.get('SALAD_CONTAINER_GROUP_ID', 'NA'),
             'instance_start': instance_start_time,
             'instance_start_datetime': datetime.datetime.utcfromtimestamp(instance_start_time).strftime('%Y-%m-%d %H:%M:%S'),
             }
-    
-    queue = None
+
     timer = None
     try:
         transcriber = WhisperTranscriber()
-        queue = Queue()
         base['seconds_to_initialize'] = time.time() - instance_start_time
         idling_started = None
         
         while True:
-            result = None
-            msg = None
-            msg = queue.get()
+            result = {}
+            msg = QUEUE.get()
             if msg:
                 base.update(msg)
                 idling_started = False
                 url, id = msg['url'], msg['id']
-                timer = start_performance_timer(msg, base)
+                estimated_compute_time = get_estimated_compute_time_in_seconds(msg)
+                print(f'Supposedly processing {id} in {estimated_compute_time} seconds')
+                QUEUE.set_last_message_visibility_timeout(estimated_compute_time + 60)
+                timer = start_performance_timer(estimated_compute_time, base)
                 result = transcriber.transcribe(url)
                 timer.cancel()
                 result.update(base)
@@ -54,7 +56,7 @@ def main():
             else:
                 if idling_started:
                     idle_time = time.time() - idling_started
-                    if idle_time > MAX_IDLE_SECONDS_BEFORE_SHUTDOWN and queue.is_empty():
+                    if idle_time > MAX_IDLE_SECONDS_BEFORE_SHUTDOWN and QUEUE.is_empty():
                         print('Shutting down Salad Container Group')
                         Salad().shutdown()
                         break
@@ -65,38 +67,35 @@ def main():
     except Exception as e:
         if timer:
             timer.cancel()
-        if msg and queue:
-            queue.delete()
-            queue.put(msg)
+        QUEUE.requeue_last_message()
         error = {"exception": type(e).__name__, "traceback": traceback.format_exception(*sys.exc_info()) }
         error.update(base)
-        if result:
-            error.update(result)
+        error.update(result)
         signature = instance_start_time
         error['instance_exit_time'] = time.time()
         storage.save(f'{signature}.failed', error)
         print(error)
         Salad().reallocate()
     
-def node_too_slow(msg, base):
+def node_too_slow(base):
     """Called when the "node-too-slow" timer expires while transcribing. 
        We put the msg back on the queue and arrange that this node is not used again."""
-    queue = Queue()
-    queue.delete()
-    queue.put(msg)
+    QUEUE.requeue_last_message()
     base['instance_exit_time'] = time.time()
-    Storage().save(f'{msg["id"]}.slow', base)
+    Storage().save(f'{base["id"]}.slow', base)
     Salad().reallocate()
     
-def start_performance_timer(msg, base):
+def start_performance_timer(timeout_in_seconds, base):
     """Start a timer based on the duration of the recording and the real-time processing factor we require.
        Add in 1 minute to cover any startup latencies.
     """
-    minutes = float(msg.get('duration_in_minutes', 0)) + 1
-    timeout =  minutes * 60 / MIN_REALTIME_FACTOR
-    timer = threading.Timer(interval = timeout, function = node_too_slow, args = [msg, base])
+    timer = threading.Timer(interval = timeout_in_seconds, function = node_too_slow, args = [base])
     timer.start()
     return timer
+
+def get_estimated_compute_time_in_seconds(msg):
+    minutes = float(msg.get('duration_in_minutes', 0)) + 1
+    return minutes * 60 / MIN_REALTIME_FACTOR
     
             
 if __name__ == '__main__':
