@@ -15,7 +15,7 @@ from SaladAPI import Salad
 # The results are stored in S3.
 
 MAX_IDLE_SECONDS_BEFORE_SHUTDOWN = (2*60) # AWS SQS Documentation says that a queue's "approximate" attributes settle within one minute.
-MIN_REALTIME_FACTOR = 22 # Abandon any nodes that are not running at at least this realtime factor
+MIN_REALTIME_FACTOR = 18 # Abandon any nodes that are not running at at least this realtime factor
 
 QUEUE = Queue()
 
