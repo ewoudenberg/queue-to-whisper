@@ -15,7 +15,7 @@ from SaladAPI import Salad
 # The results are stored in S3.
 
 MAX_IDLE_SECONDS_BEFORE_SHUTDOWN = (2*60) # AWS SQS Documentation says that a queue's "approximate" attributes settle within one minute.
-MIN_REALTIME_FACTOR = 18 # Abandon any nodes that are not running at at least this realtime factor
+MIN_REALTIME_FACTOR = int(os.environ.get("MIN_REALTIME_FACTOR", 15)) # Abandon any nodes that are not running at at least this realtime factor
 
 QUEUE = Queue()
 
@@ -42,11 +42,17 @@ def main():
                 base.update(msg)
                 idling_started = False
                 url, id = msg['url'], msg['id']
+                url = fixup(url)
                 estimated_compute_time = get_estimated_compute_time_in_seconds(msg)
                 print(f'Supposedly processing {id} in {estimated_compute_time} seconds')
                 QUEUE.set_last_message_visibility_timeout(estimated_compute_time + 60)
                 timer = start_performance_timer(estimated_compute_time, base)
-                result = transcriber.transcribe(url)
+
+                try:
+                    result = transcriber.transcribe(url)
+                except ValueError as e:
+                    result = package_error(e)
+                    
                 timer.cancel()
                 result.update(base)
                 result['instance_exit_time'] = time.time()
@@ -68,7 +74,7 @@ def main():
         if timer:
             timer.cancel()
         QUEUE.requeue_last_message()
-        error = {"exception": type(e).__name__, "traceback": traceback.format_exception(*sys.exc_info()) }
+        error = package_error(e)
         error.update(base)
         error.update(result)
         signature = instance_start_time
@@ -76,7 +82,13 @@ def main():
         storage.save(f'{signature}.failed', error)
         print(error)
         Salad().reallocate()
+        
+def package_error(e):
+    return {"exception": type(e).__name__, "traceback": traceback.format_exception(*sys.exc_info()) }
     
+def fixup(url):
+    return url.replace('media.dharmaseed.org/recordings', 'archive.dharmaseed.org/media/recordings')
+
 def node_too_slow(base):
     """Called when the "node-too-slow" timer expires while transcribing. 
        We put the msg back on the queue and arrange that this node is not used again."""
@@ -84,6 +96,8 @@ def node_too_slow(base):
     base['instance_exit_time'] = time.time()
     Storage().save(f'{base["id"]}.slow', base)
     Salad().reallocate()
+    print('Too slow, shutting down')
+    sys.exit(1)
     
 def start_performance_timer(timeout_in_seconds, base):
     """Start a timer based on the duration of the recording and the real-time processing factor we require.
